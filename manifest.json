@@ -1,9 +1,10 @@
 {
-  "id": "planner",
-  "name": "Планировщик",
+  "id": "tile-day-planner",
+  "name": "Tile Day Planner",
   "version": "0.1.0",
   "minAppVersion": "1.4.0",
-  "description": "Клиент личного планировщика задач на Supabase: панель «Сегодня», быстрый ввод, код-блок задач дня.",
-  "author": "dboichenko",
+  "description": "Browse and complete tasks from your self-hosted tile planner (Supabase) — today panel, overdue list, and day code blocks.",
+  "author": "dboichenko1",
+  "authorUrl": "https://github.com/dboichenko1/plan-obsidian",
   "isDesktopOnly": false
 }

@@ -1,7 +1,7 @@
 {
-  "name": "planner",
+  "name": "tile-day-planner",
   "version": "0.1.0",
-  "description": "Obsidian-плагин «Планировщик» — клиент к личному планировщику задач на Supabase",
+  "description": "Obsidian plugin: browse and complete tasks from your self-hosted tile planner (Supabase)",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
