@@ -3,7 +3,7 @@ import { createClient, SupabaseClient, Session } from "@supabase/supabase-js";
 import { PlannerSettingTab } from "./settings";
 import { PlannerView, VIEW_TYPE_PLANNER } from "./view";
 import { registerPlannerCodeBlock } from "./codeblock";
-import { Task } from "./types";
+import { Task, Category } from "./types";
 import { localToday, computeUrgency } from "./util";
 
 /** Показывается панелью и код-блоком, пока не заполнены URL и ключ. */
@@ -197,14 +197,38 @@ export default class PlannerPlugin extends Plugin {
 		return (data ?? []) as Task[];
 	}
 
-	/** Быстрое добавление: задача на сегодня, importance 2, urgency_manual 1, order_index 999. */
-	async addTask(title: string): Promise<void> {
+	/** Выполненные неудалённые задачи на конкретный день. */
+	async fetchDoneTasksForDay(day: string): Promise<Task[]> {
+		const { data, error } = await this.client()
+			.from("tasks")
+			.select("*")
+			.eq("status", "done")
+			.is("deleted_at", null)
+			.eq("scheduled_on", day)
+			.order("completed_at", { ascending: false });
+		if (error) throw error;
+		return (data ?? []) as Task[];
+	}
+
+	/** Категории пользователя (неархивные), по порядку. */
+	async fetchCategories(): Promise<Category[]> {
+		const { data, error } = await this.client()
+			.from("categories")
+			.select("*")
+			.is("archived_at", null)
+			.order("sort_order", { ascending: true });
+		if (error) throw error;
+		return (data ?? []) as Category[];
+	}
+
+	/** Добавить задачу на день (или без дня, если day = null). */
+	async addTask(title: string, day: string | null = localToday()): Promise<void> {
 		const userId = await this.currentUserId();
 		if (!userId) throw new Error("no active session, sign in in the plugin settings");
 		const { error } = await this.client().from("tasks").insert({
 			user_id: userId,
 			title,
-			scheduled_on: localToday(),
+			scheduled_on: day,
 			importance: 2,
 			urgency_manual: 1,
 			order_index: 999,
@@ -212,18 +236,53 @@ export default class PlannerPlugin extends Plugin {
 		if (error) throw error;
 	}
 
+	/** Произвольное обновление полей задачи. */
+	async updateTask(id: string, patch: Partial<Task>): Promise<void> {
+		const { error } = await this.client().from("tasks").update(patch).eq("id", id);
+		if (error) throw error;
+	}
+
 	/** Выполнить задачу: status done + completed_at + urgency_at_completion. */
 	async completeTask(task: Task): Promise<void> {
 		const urgency = computeUrgency(task, localToday());
-		const { error } = await this.client()
+		await this.updateTask(task.id, {
+			status: "done",
+			completed_at: new Date().toISOString(),
+			urgency_at_completion: urgency,
+		});
+	}
+
+	/** Вернуть выполненную задачу в работу. */
+	async reopenTask(task: Task): Promise<void> {
+		await this.updateTask(task.id, {
+			status: "open",
+			completed_at: null,
+			urgency_at_completion: null,
+		});
+	}
+
+	/** Перенести на день (или убрать из плана: day = null). */
+	async moveToDay(task: Task, day: string | null): Promise<void> {
+		await this.updateTask(task.id, { scheduled_on: day });
+	}
+
+	/** Мягкое удаление. */
+	async deleteTask(task: Task): Promise<void> {
+		await this.updateTask(task.id, { deleted_at: new Date().toISOString() });
+	}
+
+	/** Мягко удалить все открытые неудалённые задачи с таким же названием. */
+	async deleteAllWithTitle(title: string): Promise<number> {
+		const stamp = new Date().toISOString();
+		const { data, error } = await this.client()
 			.from("tasks")
-			.update({
-				status: "done",
-				completed_at: new Date().toISOString(),
-				urgency_at_completion: urgency,
-			})
-			.eq("id", task.id);
+			.update({ deleted_at: stamp })
+			.eq("title", title)
+			.eq("status", "open")
+			.is("deleted_at", null)
+			.select("id");
 		if (error) throw error;
+		return (data ?? []).length;
 	}
 
 	// ---------- Панель ----------

@@ -82,12 +82,69 @@ summary.planner-section-title {
 	background-color: var(--color-blue, #086ddd);
 }
 
-.planner-title {
+.planner-task-body {
 	flex: 1;
+	min-width: 0;
+}
+
+.planner-title {
+	display: block;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	cursor: pointer;
+}
+
+.planner-title:hover {
+	text-decoration: underline;
+}
+
+.planner-title-done {
+	color: var(--text-muted);
+	text-decoration: line-through;
+}
+
+.planner-subtitle {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Навигация по дням */
+.planner-daynav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 4px;
+	margin-bottom: 8px;
+}
+
+.planner-daynav-label {
+	flex: 1;
+	font-weight: 600;
+	background: transparent;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.planner-daynav-label:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* Карточка задачи */
+.planner-card .setting-item {
+	border: none;
+	padding: 6px 0;
+}
+
+.planner-card-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 14px;
 }
 
 .planner-empty {

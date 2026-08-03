@@ -20,3 +20,13 @@ export interface Task {
 	updated_at: string;
 	deleted_at: string | null;
 }
+
+/** Строка таблицы categories. */
+export interface Category {
+	id: string;
+	user_id: string;
+	name: string;
+	icon: string;
+	sort_order: number;
+	archived_at: string | null;
+}

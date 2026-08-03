@@ -1,7 +1,7 @@
 {
   "id": "tile-day-planner",
   "name": "Tile Day Planner",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "minAppVersion": "1.4.0",
   "description": "Browse and complete tasks from your self-hosted tile planner (Supabase) — today panel, overdue list, and day code blocks.",
   "author": "dboichenko1",

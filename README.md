@@ -8,6 +8,16 @@ complete your planner tasks without leaving Obsidian.
 Your data stays in **your own** Supabase project — the plugin talks directly to it using the
 public anon key, and access is protected by row level security.
 
+## Features (0.2)
+
+- Day navigation in the panel (‹ Today ›), plus Overdue and No date sections.
+- Task card (click a title): edit title, note, importance, urgency, due date/time,
+  scheduled day, category; Complete/Reopen, Today, Tomorrow, Remove from plan, Delete.
+- Right-click a task for the same quick actions; overdue tasks also offer
+  "Delete all with this title" (handy after a Google Tasks import).
+- Done section for the selected day; subtitles show due/time/category, overdue shows "N days late".
+- `planner` code block with clickable checkboxes and cards.
+
 ## Features
 
 - **Today panel** (right sidebar, `calendar-check` ribbon icon or the "Open task panel"
