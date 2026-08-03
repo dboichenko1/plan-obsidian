@@ -1,4 +1,5 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import type PlannerPlugin from "./main";
 import { errorMessage } from "./util";
 
@@ -6,6 +7,7 @@ export class PlannerSettingTab extends PluginSettingTab {
 	plugin: PlannerPlugin;
 	private email = "";
 	private code = "";
+	private link = "";
 	private applyTimer: number | null = null;
 	/** Состояние «настройки заполнены» на момент последнего рендера. */
 	private renderedConfigured = false;
@@ -161,6 +163,63 @@ export class PlannerSettingTab extends PluginSettingTab {
 							this.display();
 						} catch (err) {
 							new Notice("Failed to sign in: " + errorMessage(err));
+						} finally {
+							btn.setDisabled(false);
+						}
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Or paste the sign-in link from the email")
+			.setDesc("If the email contains a link instead of a code, paste the whole link here.")
+			.addText((text) =>
+				text
+					.setPlaceholder("https://…supabase.co/auth/v1/verify?token=…")
+					.setValue(this.link)
+					.onChange((value) => {
+						this.link = value.trim();
+					})
+			)
+			.addButton((btn) =>
+				btn
+					.setButtonText("Sign in with link")
+					.setCta()
+					.onClick(async () => {
+						if (!this.link) {
+							new Notice("Paste the link from the email");
+							return;
+						}
+						const supabase = this.plugin.supabase;
+						if (!supabase) return;
+						let token: string | null = null;
+						let type: EmailOtpType = "email";
+						try {
+							const url = new URL(this.link);
+							token = url.searchParams.get("token");
+							type = (url.searchParams.get("type") as EmailOtpType) ?? "email";
+						} catch {
+							token = null;
+						}
+						if (!token) {
+							new Notice("Link is invalid or expired — request a new email");
+							return;
+						}
+						btn.setDisabled(true);
+						try {
+							const { data, error } = await supabase.auth.verifyOtp({
+								token_hash: token,
+								type,
+							});
+							if (error) throw error;
+							if (data.session) {
+								await this.plugin.storeSession(data.session);
+							}
+							new Notice("Signed in");
+							this.link = "";
+							this.display();
+						} catch (err) {
+							console.error("Tile Day Planner: link sign-in failed", err);
+							new Notice("Link is invalid or expired — request a new email");
 						} finally {
 							btn.setDisabled(false);
 						}

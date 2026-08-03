@@ -26,7 +26,8 @@ public anon key, and access is protected by row level security.
   ````
 
   Leave the block body empty to show today.
-- **Email code sign-in** — no passwords; a one-time code is sent to your email.
+- **Email sign-in** — no passwords; enter the one-time code from the email, or paste the
+  sign-in link from it.
 - **Session persistence** — the session is stored in the plugin data and restored when
   Obsidian starts.
 
@@ -47,8 +48,10 @@ first.
 1. Open **Settings → Tile Day Planner**.
 2. Enter your **Supabase URL** (e.g. `https://abcdefgh.supabase.co`) and the project's
    **anon key**. Both can be found in your Supabase project's API settings.
-3. Enter your email and click **Send code**, then enter the one-time code from the email and
-   click **Sign in**.
+3. Enter your email and click **Send code**, then sign in with what the email contains:
+   - if there is a one-time code, enter it and click **Sign in**;
+   - if there is only a link, copy the whole link, paste it into
+     **Or paste the sign-in link from the email** and click **Sign in with link**.
 
 Until the URL and key are set, the panel and code blocks show
 "Set Supabase URL and key in settings".
