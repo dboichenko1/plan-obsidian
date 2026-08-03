@@ -94,3 +94,15 @@ Sources are in `src/`: `main.ts` (plugin core and Supabase access), `view.ts` (s
 `planner` с датой дня. Вход по коду из письма, URL и anon-ключ Supabase задаются в настройках
 плагина. Сборка: `npm install && npm run build`, файлы `main.js`, `manifest.json`,
 `styles.css` — в папку плагина `tile-day-planner` в хранилище.
+
+
+## Установка руками (по-русски, без сборки)
+
+1. Скачай три файла из последнего релиза: <https://github.com/dboichenko1/plan-obsidian/releases/latest> — `main.js`, `manifest.json`, `styles.css`.
+2. В своём хранилище Obsidian создай папку `.obsidian/plugins/tile-day-planner/` (папка `.obsidian` скрытая, в Finder показать: Cmd+Shift+точка) и положи файлы туда.
+3. Перезапусти Obsidian → Settings → **Community plugins** → выключи Restricted mode, если включён → включи **Tile Day Planner**.
+4. В настройках плагина заполни **Supabase URL** и **Supabase anon key** (спроси у владельца планировщика — эти значения публичные).
+5. Впиши почту → **Send code** → в письме придёт ссылка «Войти»: **не открывай её**, скопируй адрес правой кнопкой и вставь в поле «paste the sign-in link» → **Sign in with link**. Аккаунт создастся сам.
+6. Иконка календаря с галочкой в левой панели — задачи на сегодня; в заметках работает блок ```planner```.
+
+Письма приходят не чаще двух в час на всех — если не пришло, подожди.
