@@ -6,10 +6,8 @@ import { registerPlannerCodeBlock } from "./codeblock";
 import { Task } from "./types";
 import { localToday, computeUrgency } from "./util";
 
-const SUPABASE_URL = "https://qlanlvhxiixdhozpsbwr.supabase.co";
-// Публичный anon-ключ: безопасность обеспечивается RLS на стороне Supabase.
-const SUPABASE_ANON_KEY =
-	"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsYW5sdmh4aWl4ZGhvenBzYndyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2Mzg5NDksImV4cCI6MjEwMTIxNDk0OX0.BC-Z5eliOdb2TkLjgcvUCP_ooHqe7pwO8HG4xAxzg_A";
+/** Показывается панелью и код-блоком, пока не заполнены URL и ключ. */
+export const NOT_CONFIGURED_MESSAGE = "Set Supabase URL and key in settings";
 
 export interface StoredSession {
 	access_token: string;
@@ -18,30 +16,77 @@ export interface StoredSession {
 }
 
 export interface PlannerData {
+	supabaseUrl: string;
+	supabaseAnonKey: string;
 	session: StoredSession | null;
 }
 
 const DEFAULT_DATA: PlannerData = {
+	supabaseUrl: "",
+	supabaseAnonKey: "",
 	session: null,
 };
 
 export default class PlannerPlugin extends Plugin {
 	settings: PlannerData = { ...DEFAULT_DATA };
-	supabase!: SupabaseClient;
+	supabase: SupabaseClient | null = null;
+	private authUnsubscribe: (() => void) | null = null;
 
 	async onload() {
 		this.settings = Object.assign({}, DEFAULT_DATA, await this.loadData());
 
-		// Клиент без встроенного localStorage: сессию храним сами в данных плагина.
-		this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-			auth: {
-				persistSession: false,
-				autoRefreshToken: true,
-				detectSessionInUrl: false,
-			},
+		this.initSupabaseClient();
+		this.register(() => this.teardownClient());
+		await this.restoreSession();
+
+		this.registerView(VIEW_TYPE_PLANNER, (leaf) => new PlannerView(leaf, this));
+
+		this.addRibbonIcon("calendar-check", "Open Tile Day Planner", () => {
+			void this.activateView();
 		});
 
-		const { data: authSub } = this.supabase.auth.onAuthStateChange((event, session) => {
+		this.addCommand({
+			id: "open-panel",
+			name: "Open task panel",
+			callback: () => void this.activateView(),
+		});
+
+		this.addSettingTab(new PlannerSettingTab(this.app, this));
+		registerPlannerCodeBlock(this);
+	}
+
+	// ---------- Клиент Supabase ----------
+
+	/** URL и anon-ключ заполнены в настройках. */
+	isConfigured(): boolean {
+		return this.settings.supabaseUrl.trim() !== "" && this.settings.supabaseAnonKey.trim() !== "";
+	}
+
+	/**
+	 * Пересоздаёт клиент из текущих настроек. Старый клиент останавливается
+	 * (отписка от auth-событий, остановка автообновления токена).
+	 */
+	initSupabaseClient(): void {
+		this.teardownClient();
+		if (!this.isConfigured()) return;
+
+		try {
+			// Клиент без встроенного localStorage: сессию храним сами в данных плагина.
+			this.supabase = createClient(this.settings.supabaseUrl.trim(), this.settings.supabaseAnonKey.trim(), {
+				auth: {
+					persistSession: false,
+					autoRefreshToken: true,
+					detectSessionInUrl: false,
+				},
+			});
+		} catch (err) {
+			// Например, недописанный URL — просто остаёмся без клиента.
+			console.error("Tile Day Planner: cannot create Supabase client", err);
+			this.supabase = null;
+			return;
+		}
+
+		const { data } = this.supabase.auth.onAuthStateChange((event, session) => {
 			if (event === "SIGNED_OUT") {
 				this.settings.session = null;
 				void this.saveSettings();
@@ -49,24 +94,27 @@ export default class PlannerPlugin extends Plugin {
 				void this.storeSession(session);
 			}
 		});
-		this.register(() => authSub.subscription.unsubscribe());
+		this.authUnsubscribe = () => data.subscription.unsubscribe();
+	}
 
+	private teardownClient(): void {
+		this.authUnsubscribe?.();
+		this.authUnsubscribe = null;
+		void this.supabase?.auth.stopAutoRefresh();
+		this.supabase = null;
+	}
+
+	/** Вызывается настройками после изменения URL/ключа. */
+	async applyConnectionSettings(): Promise<void> {
+		await this.saveSettings();
+		this.initSupabaseClient();
 		await this.restoreSession();
+	}
 
-		this.registerView(VIEW_TYPE_PLANNER, (leaf) => new PlannerView(leaf, this));
-
-		this.addRibbonIcon("calendar-check", "Планировщик: открыть панель", () => {
-			void this.activateView();
-		});
-
-		this.addCommand({
-			id: "open-panel",
-			name: "Открыть панель задач",
-			callback: () => void this.activateView(),
-		});
-
-		this.addSettingTab(new PlannerSettingTab(this.app, this));
-		registerPlannerCodeBlock(this);
+	/** Клиент для запросов; бросает понятную ошибку, если настройки не заполнены. */
+	private client(): SupabaseClient {
+		if (!this.supabase) throw new Error(NOT_CONFIGURED_MESSAGE);
+		return this.supabase;
 	}
 
 	// ---------- Сессия ----------
@@ -86,28 +134,28 @@ export default class PlannerPlugin extends Plugin {
 
 	private async restoreSession(): Promise<void> {
 		const stored = this.settings.session;
-		if (!stored) return;
+		if (!stored || !this.supabase) return;
 		try {
 			const { error } = await this.supabase.auth.setSession({
 				access_token: stored.access_token,
 				refresh_token: stored.refresh_token,
 			});
 			if (error) {
-				console.error("Планировщик: не удалось восстановить сессию", error);
+				console.error("Tile Day Planner: cannot restore session", error);
 				this.settings.session = null;
 				await this.saveSettings();
 			}
 		} catch (err) {
 			// Например, нет сети: сохранённую сессию не трогаем, попробуем в следующий раз.
-			console.error("Планировщик: ошибка восстановления сессии", err);
+			console.error("Tile Day Planner: session restore failed", err);
 		}
 	}
 
 	async signOut(): Promise<void> {
 		try {
-			await this.supabase.auth.signOut();
+			await this.supabase?.auth.signOut();
 		} catch (err) {
-			console.error("Планировщик: ошибка при выходе", err);
+			console.error("Tile Day Planner: sign out failed", err);
 		}
 		this.settings.session = null;
 		await this.saveSettings();
@@ -120,13 +168,13 @@ export default class PlannerPlugin extends Plugin {
 	// ---------- Данные ----------
 
 	private async currentUserId(): Promise<string | null> {
-		const { data } = await this.supabase.auth.getSession();
+		const { data } = await this.client().auth.getSession();
 		return data.session?.user?.id ?? null;
 	}
 
 	/** Все открытые неудалённые задачи пользователя. */
 	async fetchOpenTasks(): Promise<Task[]> {
-		const { data, error } = await this.supabase
+		const { data, error } = await this.client()
 			.from("tasks")
 			.select("*")
 			.eq("status", "open")
@@ -138,7 +186,7 @@ export default class PlannerPlugin extends Plugin {
 
 	/** Открытые неудалённые задачи на конкретный день (scheduled_on = day). */
 	async fetchOpenTasksForDay(day: string): Promise<Task[]> {
-		const { data, error } = await this.supabase
+		const { data, error } = await this.client()
 			.from("tasks")
 			.select("*")
 			.eq("status", "open")
@@ -152,8 +200,8 @@ export default class PlannerPlugin extends Plugin {
 	/** Быстрое добавление: задача на сегодня, importance 2, urgency_manual 1, order_index 999. */
 	async addTask(title: string): Promise<void> {
 		const userId = await this.currentUserId();
-		if (!userId) throw new Error("нет активной сессии, войдите в настройках");
-		const { error } = await this.supabase.from("tasks").insert({
+		if (!userId) throw new Error("no active session, sign in in the plugin settings");
+		const { error } = await this.client().from("tasks").insert({
 			user_id: userId,
 			title,
 			scheduled_on: localToday(),
@@ -167,7 +215,7 @@ export default class PlannerPlugin extends Plugin {
 	/** Выполнить задачу: status done + completed_at + urgency_at_completion. */
 	async completeTask(task: Task): Promise<void> {
 		const urgency = computeUrgency(task, localToday());
-		const { error } = await this.supabase
+		const { error } = await this.client()
 			.from("tasks")
 			.update({
 				status: "done",

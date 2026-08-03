@@ -1,9 +1,10 @@
 import { ItemView, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import type PlannerPlugin from "./main";
+import { NOT_CONFIGURED_MESSAGE } from "./main";
 import { Task } from "./types";
 import { localToday, computeUrgency, errorMessage } from "./util";
 
-export const VIEW_TYPE_PLANNER = "planner-view";
+export const VIEW_TYPE_PLANNER = "tile-day-planner-view";
 
 export class PlannerView extends ItemView {
 	plugin: PlannerPlugin;
@@ -21,7 +22,7 @@ export class PlannerView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Планировщик";
+		return "Tile Day Planner";
 	}
 
 	getIcon(): string {
@@ -38,7 +39,7 @@ export class PlannerView extends ItemView {
 		const input = toolbar.createEl("input", {
 			cls: "planner-quick-add",
 			type: "text",
-			placeholder: "Новая задача — Enter",
+			placeholder: "New task — press Enter",
 		});
 		input.addEventListener("keydown", async (evt) => {
 			if (evt.key !== "Enter") return;
@@ -50,7 +51,7 @@ export class PlannerView extends ItemView {
 				input.value = "";
 				await this.refresh();
 			} catch (err) {
-				new Notice("Не удалось добавить задачу: " + errorMessage(err));
+				new Notice("Failed to add task: " + errorMessage(err));
 			} finally {
 				input.disabled = false;
 				input.focus();
@@ -59,7 +60,7 @@ export class PlannerView extends ItemView {
 
 		const refreshBtn = toolbar.createEl("button", {
 			cls: "planner-refresh clickable-icon",
-			attr: { "aria-label": "Обновить" },
+			attr: { "aria-label": "Refresh" },
 		});
 		setIcon(refreshBtn, "refresh-cw");
 		refreshBtn.addEventListener("click", () => void this.refresh());
@@ -77,21 +78,26 @@ export class PlannerView extends ItemView {
 		if (!el) return;
 		el.empty();
 
+		if (!this.plugin.isConfigured()) {
+			el.createDiv({ cls: "planner-empty", text: NOT_CONFIGURED_MESSAGE });
+			return;
+		}
+
 		if (!this.plugin.isLoggedIn()) {
 			el.createDiv({
 				cls: "planner-empty",
-				text: "Войдите в настройках плагина «Планировщик».",
+				text: "Sign in in the Tile Day Planner settings.",
 			});
 			return;
 		}
 
-		el.createDiv({ cls: "planner-empty", text: "Загрузка…" });
+		el.createDiv({ cls: "planner-empty", text: "Loading…" });
 		let tasks: Task[];
 		try {
 			tasks = await this.plugin.fetchOpenTasks();
 		} catch (err) {
 			el.empty();
-			el.createDiv({ cls: "planner-error", text: "Ошибка загрузки: " + errorMessage(err) });
+			el.createDiv({ cls: "planner-error", text: "Failed to load tasks: " + errorMessage(err) });
 			return;
 		}
 		el.empty();
@@ -102,13 +108,13 @@ export class PlannerView extends ItemView {
 		const noDate = tasks.filter((t) => t.scheduled_on === null);
 
 		const todaySection = el.createDiv({ cls: "planner-section" });
-		todaySection.createDiv({ cls: "planner-section-title", text: `Сегодня · ${todayTasks.length}` });
-		this.renderTaskList(todaySection, todayTasks, today, "Нет задач на сегодня");
+		todaySection.createDiv({ cls: "planner-section-title", text: `Today · ${todayTasks.length}` });
+		this.renderTaskList(todaySection, todayTasks, today, "No tasks for today");
 
-		this.renderCollapsible(el, `Просроченные · ${overdue.length}`, overdue, today, this.overdueOpen, (v) => {
+		this.renderCollapsible(el, `Overdue · ${overdue.length}`, overdue, today, this.overdueOpen, (v) => {
 			this.overdueOpen = v;
 		});
-		this.renderCollapsible(el, `Без даты · ${noDate.length}`, noDate, today, this.noDateOpen, (v) => {
+		this.renderCollapsible(el, `No date · ${noDate.length}`, noDate, today, this.noDateOpen, (v) => {
 			this.noDateOpen = v;
 		});
 	}
@@ -125,7 +131,7 @@ export class PlannerView extends ItemView {
 		details.open = open;
 		details.addEventListener("toggle", () => setOpen(details.open));
 		details.createEl("summary", { cls: "planner-section-title", text: title });
-		this.renderTaskList(details, tasks, today, "Пусто");
+		this.renderTaskList(details, tasks, today, "Nothing here");
 	}
 
 	private renderTaskList(parent: HTMLElement, tasks: Task[], today: string, emptyText: string): void {
@@ -147,14 +153,14 @@ export class PlannerView extends ItemView {
 				} catch (err) {
 					checkbox.checked = false;
 					checkbox.disabled = false;
-					new Notice("Не удалось выполнить задачу: " + errorMessage(err));
+					new Notice("Failed to complete task: " + errorMessage(err));
 				}
 			});
 
 			const urgency = computeUrgency(task, today);
 			row.createSpan({
 				cls: `planner-dot planner-urgency-${urgency}`,
-				attr: { "aria-label": `Срочность ${urgency}` },
+				attr: { "aria-label": `Urgency ${urgency}` },
 			});
 			row.createSpan({ cls: "planner-title", text: task.title });
 		}

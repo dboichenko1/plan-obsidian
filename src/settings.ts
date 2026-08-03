@@ -6,28 +6,80 @@ export class PlannerSettingTab extends PluginSettingTab {
 	plugin: PlannerPlugin;
 	private email = "";
 	private code = "";
+	private applyTimer: number | null = null;
+	/** Состояние «настройки заполнены» на момент последнего рендера. */
+	private renderedConfigured = false;
 
 	constructor(app: App, plugin: PlannerPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
+	/**
+	 * Пересоздание клиента с задержкой, чтобы не дёргать Supabase на каждый
+	 * введённый символ. Перерисовываем вкладку только когда меняется само
+	 * состояние «заполнено/не заполнено» — иначе поле теряло бы фокус.
+	 */
+	private scheduleApply(): void {
+		if (this.applyTimer !== null) window.clearTimeout(this.applyTimer);
+		this.applyTimer = window.setTimeout(() => {
+			this.applyTimer = null;
+			void this.plugin.applyConnectionSettings().then(() => {
+				if (this.plugin.isConfigured() !== this.renderedConfigured) this.display();
+			});
+		}, 600);
+	}
+
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
+		this.renderedConfigured = this.plugin.isConfigured();
+
+		new Setting(containerEl)
+			.setName("Supabase URL")
+			.setDesc("URL of your Supabase project, e.g. https://abcdefgh.supabase.co.")
+			.addText((text) =>
+				text
+					.setPlaceholder("https://…supabase.co")
+					.setValue(this.plugin.settings.supabaseUrl)
+					.onChange((value) => {
+						this.plugin.settings.supabaseUrl = value.trim();
+						this.scheduleApply();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Supabase anon key")
+			.setDesc("Public anon key of the project. Data access is protected by row level security.")
+			.addText((text) =>
+				text
+					.setPlaceholder("eyJhbGciOi…")
+					.setValue(this.plugin.settings.supabaseAnonKey)
+					.onChange((value) => {
+						this.plugin.settings.supabaseAnonKey = value.trim();
+						this.scheduleApply();
+					})
+			);
+
+		new Setting(containerEl).setName("Account").setHeading();
+
+		if (!this.plugin.isConfigured()) {
+			new Setting(containerEl).setDesc("Fill in the Supabase URL and anon key above to sign in.");
+			return;
+		}
 
 		if (this.plugin.isLoggedIn()) {
-			const email = this.plugin.settings.session?.email ?? "(почта неизвестна)";
+			const email = this.plugin.settings.session?.email ?? "(unknown email)";
 			new Setting(containerEl)
-				.setName(`Вы вошли как ${email}`)
-				.setDesc("Сессия сохранена и восстанавливается при запуске Obsidian.")
+				.setName(`Signed in as ${email}`)
+				.setDesc("The session is saved and restored when Obsidian starts.")
 				.addButton((btn) =>
 					btn
-						.setButtonText("Выйти")
+						.setButtonText("Sign out")
 						.setWarning()
 						.onClick(async () => {
 							await this.plugin.signOut();
-							new Notice("Вы вышли из планировщика");
+							new Notice("Signed out");
 							this.display();
 						})
 				);
@@ -35,8 +87,8 @@ export class PlannerSettingTab extends PluginSettingTab {
 		}
 
 		new Setting(containerEl)
-			.setName("Почта")
-			.setDesc("На этот адрес придёт одноразовый код для входа.")
+			.setName("Email")
+			.setDesc("A one-time sign-in code will be sent to this address.")
 			.addText((text) =>
 				text
 					.setPlaceholder("you@example.com")
@@ -47,22 +99,24 @@ export class PlannerSettingTab extends PluginSettingTab {
 			)
 			.addButton((btn) =>
 				btn
-					.setButtonText("Прислать код")
+					.setButtonText("Send code")
 					.setCta()
 					.onClick(async () => {
 						if (!this.email) {
-							new Notice("Введите почту");
+							new Notice("Enter your email");
 							return;
 						}
+						const supabase = this.plugin.supabase;
+						if (!supabase) return;
 						btn.setDisabled(true);
 						try {
-							const { error } = await this.plugin.supabase.auth.signInWithOtp({
+							const { error } = await supabase.auth.signInWithOtp({
 								email: this.email,
 							});
 							if (error) throw error;
-							new Notice(`Код отправлен на ${this.email}`);
+							new Notice(`Code sent to ${this.email}`);
 						} catch (err) {
-							new Notice("Не удалось отправить код: " + errorMessage(err));
+							new Notice("Failed to send code: " + errorMessage(err));
 						} finally {
 							btn.setDisabled(false);
 						}
@@ -70,8 +124,8 @@ export class PlannerSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Код из письма")
-			.setDesc("Введите присланный код и нажмите «Войти».")
+			.setName("Code from email")
+			.setDesc("Enter the code you received and press Sign in.")
 			.addText((text) =>
 				text
 					.setPlaceholder("123456")
@@ -82,16 +136,18 @@ export class PlannerSettingTab extends PluginSettingTab {
 			)
 			.addButton((btn) =>
 				btn
-					.setButtonText("Войти")
+					.setButtonText("Sign in")
 					.setCta()
 					.onClick(async () => {
 						if (!this.email || !this.code) {
-							new Notice("Введите почту и код");
+							new Notice("Enter your email and the code");
 							return;
 						}
+						const supabase = this.plugin.supabase;
+						if (!supabase) return;
 						btn.setDisabled(true);
 						try {
-							const { data, error } = await this.plugin.supabase.auth.verifyOtp({
+							const { data, error } = await supabase.auth.verifyOtp({
 								email: this.email,
 								token: this.code,
 								type: "email",
@@ -100,15 +156,23 @@ export class PlannerSettingTab extends PluginSettingTab {
 							if (data.session) {
 								await this.plugin.storeSession(data.session);
 							}
-							new Notice("Вход выполнен");
+							new Notice("Signed in");
 							this.code = "";
 							this.display();
 						} catch (err) {
-							new Notice("Не удалось войти: " + errorMessage(err));
+							new Notice("Failed to sign in: " + errorMessage(err));
 						} finally {
 							btn.setDisabled(false);
 						}
 					})
 			);
+	}
+
+	hide(): void {
+		if (this.applyTimer !== null) {
+			window.clearTimeout(this.applyTimer);
+			this.applyTimer = null;
+			void this.plugin.applyConnectionSettings();
+		}
 	}
 }

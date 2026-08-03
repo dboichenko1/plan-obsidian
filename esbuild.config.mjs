@@ -2,8 +2,8 @@ import esbuild from "esbuild";
 import process from "process";
 
 const banner = `/*
-Это сгенерированный файл сборки плагина «Планировщик».
-Исходный код — в репозитории (каталог src/).
+This is a generated build of the Tile Day Planner plugin.
+The source code lives in the repository (src/ directory).
 */`;
 
 const prod = process.argv[2] === "production";
