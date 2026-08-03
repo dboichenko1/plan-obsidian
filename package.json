@@ -1,0 +1,21 @@
+{
+  "name": "planner",
+  "version": "0.1.0",
+  "description": "Obsidian-плагин «Планировщик» — клиент к личному планировщику задач на Supabase",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+  },
+  "keywords": ["obsidian", "plugin", "planner", "supabase"],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "esbuild": "^0.21.5",
+    "obsidian": "^1.7.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

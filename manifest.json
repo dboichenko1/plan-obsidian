@@ -1,0 +1,9 @@
+{
+  "id": "planner",
+  "name": "Планировщик",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Клиент личного планировщика задач на Supabase: панель «Сегодня», быстрый ввод, код-блок задач дня.",
+  "author": "dboichenko",
+  "isDesktopOnly": false
+}
