@@ -196,7 +196,10 @@ export class PlannerSettingTab extends PluginSettingTab {
 						try {
 							const url = new URL(this.link);
 							token = url.searchParams.get("token");
-							type = (url.searchParams.get("type") as EmailOtpType) ?? "email";
+							const raw = url.searchParams.get("type") ?? "email";
+							// verify по token_hash понимает только 'email' и служебные типы;
+							// 'magiclink'/'signup' из письма — синонимы email-входа.
+							type = raw === "magiclink" || raw === "signup" ? "email" : (raw as EmailOtpType);
 						} catch {
 							token = null;
 						}
