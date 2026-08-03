@@ -1,21 +1,23 @@
-# Планировщик — плагин Obsidian
+# Tile Day Planner
 
-Клиент к личному планировщику задач на Supabase. Безопасность обеспечивается RLS,
-в код зашит только публичный anon-ключ.
+An Obsidian client for a self-hosted tile planner backed by [Supabase](https://supabase.com).
+The server side and the web app live in a separate repository:
+[dboichenko1/plan_web](https://github.com/dboichenko1/plan_web). This plugin lets you see and
+complete your planner tasks without leaving Obsidian.
 
-## Возможности (MVP)
+Your data stays in **your own** Supabase project — the plugin talks directly to it using the
+public anon key, and access is protected by row level security.
 
-- **Вход по коду из письма** — в настройках плагина: введите почту, нажмите
-  «Прислать код», затем введите код и нажмите «Войти». Сессия сохраняется в данных
-  плагина и восстанавливается при запуске Obsidian. Там же — кнопка «Выйти».
-- **Правая боковая панель** (иконка `calendar-check`, команда «Планировщик: открыть
-  панель задач»):
-  - секция **«Сегодня»** — открытые задачи с `scheduled_on` = сегодня (локальная дата);
-  - секция **«Просроченные · N»** — задачи с датой раньше сегодняшней (свёрнута по умолчанию);
-  - секция **«Без даты · N»** — задачи без `scheduled_on` (свёрнута по умолчанию);
-  - у каждой задачи: чекбокс (отметить выполненной), цветная точка срочности и название;
-  - наверху поле быстрого добавления (Enter — создать задачу на сегодня) и кнопка «Обновить».
-- **Код-блок дня** — вставьте в заметку:
+## Features
+
+- **Today panel** (right sidebar, `calendar-check` ribbon icon or the "Open task panel"
+  command):
+  - **Today** — open tasks scheduled for today (local date);
+  - **Overdue** — tasks scheduled earlier than today (collapsed by default);
+  - **No date** — tasks without a scheduled date (collapsed by default);
+  - each task has a checkbox to complete it, a colored urgency dot, and its title;
+  - a quick-add field at the top (press Enter to create a task for today) and a refresh button.
+- **Day code block** — embed a day's open tasks in any note:
 
   ````markdown
   ```planner
@@ -23,40 +25,69 @@
   ```
   ````
 
-  Пустое тело блока — сегодняшний день. Рендерится список открытых задач этого дня
-  с точками срочности.
+  Leave the block body empty to show today.
+- **Email code sign-in** — no passwords; a one-time code is sent to your email.
+- **Session persistence** — the session is stored in the plugin data and restored when
+  Obsidian starts.
 
-## Срочность
+### Urgency
 
-- если задан срок (`due_on`): сегодня или просрочено — 4 (красная точка),
-  до 3 дней — 3 (оранжевая), до 7 дней — 2 (зелёная), дальше — 1 (синяя);
-- без срока — ручная срочность задачи (`urgency_manual`).
+- with a due date (`due_on`): due today or overdue — 4 (red dot), within 3 days — 3 (orange),
+  within 7 days — 2 (green), later — 1 (blue);
+- without a due date — the task's manual urgency (`urgency_manual`).
 
-При выполнении задачи записываются `completed_at` и `urgency_at_completion`
-(срочность на момент выполнения).
+Completing a task records `completed_at` and `urgency_at_completion`.
 
-## Установка
+## Setup
 
-1. Соберите плагин:
+This plugin is a client: it needs a running planner backend. Deploy the schema from
+[dboichenko1/plan_web](https://github.com/dboichenko1/plan_web) to your own Supabase project
+first.
 
-   ```bash
-   npm install
-   npm run build
-   ```
+1. Open **Settings → Tile Day Planner**.
+2. Enter your **Supabase URL** (e.g. `https://abcdefgh.supabase.co`) and the project's
+   **anon key**. Both can be found in your Supabase project's API settings.
+3. Enter your email and click **Send code**, then enter the one-time code from the email and
+   click **Sign in**.
 
-2. Скопируйте `manifest.json`, `main.js` и `styles.css` в папку
-   `<vault>/.obsidian/plugins/planner/` вашего хранилища (папку `planner` создайте).
+Until the URL and key are set, the panel and code blocks show
+"Set Supabase URL and key in settings".
 
-3. В Obsidian откройте **Настройки → Плагины сообщества**, обновите список и включите
-   «Планировщик».
+## Install
 
-4. В настройках плагина войдите по почте и коду.
+### Community plugins
 
-## Разработка
+Once the plugin is accepted into the catalog: **Settings → Community plugins → Browse**,
+search for "Tile Day Planner", install and enable it.
 
-- `npm run dev` — сборка в режиме наблюдения (esbuild watch);
-- `npm run build` — проверка типов TypeScript и продакшн-сборка в `main.js`.
+### BRAT
 
-Исходники — в `src/`: `main.ts` (плагин и работа с Supabase), `view.ts` (панель),
-`settings.ts` (вкладка настроек и вход), `codeblock.ts` (код-блок `planner`),
-`util.ts` (даты и срочность), `types.ts` (типы данных).
+Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin, then add
+`dboichenko1/plan-obsidian` as a beta plugin.
+
+### Manual
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from the
+   [latest release](https://github.com/dboichenko1/plan-obsidian/releases), or build them
+   yourself with `npm install && npm run build`.
+2. Copy them into `<vault>/.obsidian/plugins/tile-day-planner/` (create the folder).
+3. Enable the plugin in **Settings → Community plugins**.
+
+## Development
+
+- `npm run dev` — esbuild watch mode;
+- `npm run build` — TypeScript type check and production build into `main.js`.
+
+Sources are in `src/`: `main.ts` (plugin core and Supabase access), `view.ts` (sidebar panel),
+`settings.ts` (settings tab and sign-in), `codeblock.ts` (the `planner` code block),
+`util.ts` (dates and urgency), `types.ts` (data types).
+
+---
+
+## Для себя
+
+Это клиент к моему личному планировщику ([plan_web](https://github.com/dboichenko1/plan_web)):
+панель «Сегодня» с просроченными и задачами без даты, быстрый ввод на сегодня, код-блок
+`planner` с датой дня. Вход по коду из письма, URL и anon-ключ Supabase задаются в настройках
+плагина. Сборка: `npm install && npm run build`, файлы `main.js`, `manifest.json`,
+`styles.css` — в папку плагина `tile-day-planner` в хранилище.
